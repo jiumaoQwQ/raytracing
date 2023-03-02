@@ -13,7 +13,7 @@
 #include "MeshVao.h"
 #include "Shader.h"
 #include "Texture.h"
-#include "Scene.h"
+#include "Sphere.h"
 #include <curand_kernel.h>
 
 GLFWwindow *window;
@@ -263,6 +263,16 @@ void process_input(GLFWwindow *window, Camera *camera, float3 *colors, int &cnt)
     else if (glfwGetKey(window, GLFW_KEY_A))
     {
         camera_move<<<1, 1>>>(camera, LEFT);
+        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
+        cnt = 0;
+    }
+    else if(glfwGetKey(window, GLFW_KEY_Q)){
+        camera_move<<<1, 1>>>(camera, UP);
+        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
+        cnt = 0;
+    }
+    else if(glfwGetKey(window, GLFW_KEY_E)){
+        camera_move<<<1, 1>>>(camera, DOWN);
         clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
         cnt = 0;
     }

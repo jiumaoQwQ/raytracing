@@ -1,14 +1,16 @@
 #pragma once
 
 #include "helper_math.h"
-#include "Scene.h"
+#include "Sphere.h"
 
 enum MoveDirection
 {
     FORWARD,
     BACKWARD,
     LEFT,
-    RIGHT
+    RIGHT,
+    UP,
+    DOWN
 };
 
 struct Camera
@@ -83,6 +85,14 @@ struct Camera
         else if (dir == LEFT)
         {
             pos += -getU() * speed;
+        }
+        else if (dir == UP)
+        {
+            pos += getV() * speed;
+        }
+        else if (dir == DOWN)
+        {
+            pos += -getV() * speed;
         }
     }
 };
