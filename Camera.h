@@ -61,7 +61,7 @@ struct Camera
         Ray ray;
         ray.pos = pos;
         float3 pixel_pos = getLeftButtomPos() + getU() * u * getWidth() + getV() * v * getHeight();
-        ray.dir = pixel_pos - pos;
+        ray.dir = normalize(pixel_pos - pos);
         return ray;
     }
 

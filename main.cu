@@ -63,16 +63,14 @@ __device__ float3 sampleInSphereSurface(curandState *state)
             __cosf(theta)};
 }
 
-__device__ void test_if_intersect(Sphere *spheres, Ray ray,
-                                  bool &is_hit, int &index,
+__device__ bool test_if_intersect(Sphere *spheres, Ray ray,
+                                  bool &in_sphere, int &index,
                                   float3 &hit_pos, float3 &hit_normal)
 {
+    bool is_hit = false;
     float3 O = ray.pos;
     float3 d = ray.dir;
-    float t = 10000000000;
-    float tmpt = 0;
-    is_hit = false;
-    index = -1;
+    float t = 10e8f;
     for (int i = 0; i < num_of_spheres; i++)
     {
         float r = spheres[i].radius;
@@ -84,25 +82,22 @@ __device__ void test_if_intersect(Sphere *spheres, Ray ray,
         float delta = b * b - 4 * a * c;
         if (delta > 0)
         {
-            float t1 = (-b + sqrtf(delta)) / (2 * a);
-            float t2 = (-b - sqrtf(delta)) / (2 * a);
-            if (t1 > 0 && t2 > 0)
+            float root = (-b - sqrtf(delta)) / (2 * a);
+            if (root > 0.001f && t > root)
             {
-                tmpt = __min(t1, t2);
-            }
-            else if (t1 > 0 && t2 < 0)
-            {
-                tmpt = t1;
+                is_hit = true;
+                index = i;
+                t = root;
             }
             else
             {
-                continue;
-            }
-            if (tmpt < t)
-            {
-                is_hit = true;
-                t = tmpt;
-                index = i;
+                root = (-b + sqrtf(delta)) / (2 * a);
+                if (root > 0.001f && t > root)
+                {
+                    is_hit = true;
+                    index = i;
+                    t = root;
+                }
             }
         }
     }
@@ -110,7 +105,27 @@ __device__ void test_if_intersect(Sphere *spheres, Ray ray,
     {
         hit_pos = O + d * t;
         hit_normal = normalize(hit_pos - spheres[index].pos);
+        if (dot(hit_normal, -ray.dir) < 0)
+        {
+            in_sphere = true;
+            hit_normal = -hit_normal;
+        }
     }
+    return is_hit;
+}
+
+__device__ float reflectance(float cos_theta, float ref_idx)
+{
+    float r0 = __powf((1 - ref_idx) / (1 + ref_idx), 2);
+    return r0 + (1 - r0) * __powf(1 - cos_theta, 5);
+}
+
+__device__ float3 refract(float3 uv, float3 n, float etai_over_etat)
+{
+    float cos_theta = fminf(dot(-uv, n), 1.0);
+    float3 r_out_perp = etai_over_etat * (uv + cos_theta * n);
+    float3 r_out_parallel = -sqrtf(fabsf(1.0f - dot(r_out_perp, r_out_perp))) * n;
+    return r_out_perp + r_out_parallel;
 }
 
 __device__ float3 cast_ray(Sphere *spheres, Ray ray, curandState *state)
@@ -120,11 +135,10 @@ __device__ float3 cast_ray(Sphere *spheres, Ray ray, curandState *state)
     Ray m_ray = ray;
     for (int i = 0; i < 10; i++)
     {
-        int sphere_index;
-        bool is_hit;
-        float3 hit_pos, hit_normal;
-        test_if_intersect(spheres, m_ray, is_hit, sphere_index, hit_pos, hit_normal);
-        if (is_hit)
+        int sphere_index = -1;
+        bool in_sphere = false;
+        float3 hit_pos = {0, 0, 0}, hit_normal = {0, 1, 0};
+        if (test_if_intersect(spheres, m_ray, in_sphere, sphere_index, hit_pos, hit_normal))
         {
             int material = spheres[sphere_index].material;
             if (material == 0)
@@ -138,7 +152,6 @@ __device__ float3 cast_ray(Sphere *spheres, Ray ray, curandState *state)
                 float3 random_vec = sampleInSphereSurface(state);
                 m_ray.pos = hit_pos;
                 m_ray.dir = normalize(hit_pos + hit_normal + random_vec - hit_pos);
-                continue;
             }
             else if (material == 2 || material == 4)
             {
@@ -151,18 +164,29 @@ __device__ float3 cast_ray(Sphere *spheres, Ray ray, curandState *state)
                 m_ray.dir += random_vec * fuzz;
                 if (dot(m_ray.dir, hit_normal) < 0)
                     break;
-                else
-                    brightness *= spheres[sphere_index].color;
-                continue;
+                brightness *= spheres[sphere_index].color;
             }
             else if (material == 3)
             {
+                float refraction_ratio = 1.0f / 1.5f;
+                if (in_sphere)
+                {
+                    refraction_ratio = 1.0f / refraction_ratio;
+                }
+                float cos_theta = fminf(dot(-m_ray.dir, hit_normal), 1.0);
+                float sin_theta = sqrt(1.0 - cos_theta * cos_theta);
+                if (refraction_ratio * sin_theta > 1.0f || reflectance(cos_theta, refraction_ratio) > curand_uniform(state))
+                {
+                    m_ray.pos = hit_pos;
+                    m_ray.dir = m_ray.dir - 2 * dot(hit_normal, m_ray.dir) * hit_normal;
+                    brightness *= spheres[sphere_index].color;
+                }
+                else
+                {
+                    m_ray.pos = hit_pos;
+                    m_ray.dir = refract(normalize(m_ray.dir), hit_normal, refraction_ratio);
+                }
             }
-        }
-        else
-        {
-            m_color = make_float3(0, 0, 0) * brightness;
-            break;
         }
     }
     return m_color;
@@ -198,15 +222,15 @@ __global__ void transfor_to_canvas(float3 *canvas, float3 *colors, int cnt)
         return;
     int id = x + y * WIDTH;
 
-    canvas[id] = colors[id] * 1.0 / cnt;
+    canvas[id] = colors[id] / cnt;
 }
 
-// void process_input(GLFWwindow* window)
-// {
-//     if(glfwGetMouseButton(window,GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS){
+void process_input(GLFWwindow* window)
+{
+    if(glfwGetMouseButton(window,GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS){
 
-//     }
-// }
+    }
+}
 
 int main()
 {
@@ -261,7 +285,7 @@ int main()
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        // process_input(window);
+        process_input(window);
         cnt++;
         substep_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors, spheres, camera, state);
 
