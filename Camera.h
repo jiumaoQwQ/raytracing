@@ -3,13 +3,13 @@
 #include "helper_math.h"
 #include "Scene.h"
 
-// enum MoveDirection
-// {
-//     FORWARD,
-//     BACKWARD,
-//     LEFT,
-//     RIGHT
-// };
+enum MoveDirection
+{
+    FORWARD,
+    BACKWARD,
+    LEFT,
+    RIGHT
+};
 
 struct Camera
 {
@@ -65,19 +65,24 @@ struct Camera
         return ray;
     }
 
-    // __device__ void move(MoveDirection dir)
-    // {
-    //     if(dir == FORWARD){
-
-    //     }
-    //     else if(dir ==BACKWARD){
-
-    //     }
-    //     else if(dir == RIGHT){
-
-    //     }
-    //     else if(dir == LEFT){
-
-    //     }
-    // }
+    __device__ void move(MoveDirection dir)
+    {
+        float speed = 0.1f;
+        if (dir == FORWARD)
+        {
+            pos += -getW() * speed;
+        }
+        else if (dir == BACKWARD)
+        {
+            pos += getW() * speed;
+        }
+        else if (dir == RIGHT)
+        {
+            pos += getU() * speed;
+        }
+        else if (dir == LEFT)
+        {
+            pos += -getU() * speed;
+        }
+    }
 };

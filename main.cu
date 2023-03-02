@@ -225,10 +225,52 @@ __global__ void transfor_to_canvas(float3 *canvas, float3 *colors, int cnt)
     canvas[id] = colors[id] / cnt;
 }
 
-void process_input(GLFWwindow* window)
+__global__ void camera_move(Camera *camera, MoveDirection dir)
 {
-    if(glfwGetMouseButton(window,GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS){
+    camera->move(dir);
+}
 
+__global__ void clear_kernel(float3 *colors)
+{
+    int x = threadIdx.x + blockIdx.x * blockDim.x;
+    int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x > WIDTH || y > HEIGHT)
+        return;
+    int id = x + y * WIDTH;
+    colors[id] = {0, 0, 0};
+}
+
+void process_input(GLFWwindow *window, Camera *camera, float3 *colors, int &cnt)
+{
+    if (glfwGetKey(window, GLFW_KEY_W))
+    {
+        camera_move<<<1, 1>>>(camera, FORWARD);
+        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
+        cnt = 0;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_S))
+    {
+        camera_move<<<1, 1>>>(camera, BACKWARD);
+        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
+        cnt = 0;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_S))
+    {
+        camera_move<<<1, 1>>>(camera, BACKWARD);
+        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
+        cnt = 0;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_D))
+    {
+        camera_move<<<1, 1>>>(camera, RIGHT);
+        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
+        cnt = 0;
+    }
+    else if (glfwGetKey(window, GLFW_KEY_A))
+    {
+        camera_move<<<1, 1>>>(camera, LEFT);
+        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
+        cnt = 0;
     }
 }
 
@@ -285,7 +327,7 @@ int main()
         glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        process_input(window);
+        process_input(window, camera, colors, cnt);
         cnt++;
         substep_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors, spheres, camera, state);
 
