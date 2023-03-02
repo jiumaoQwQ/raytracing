@@ -254,12 +254,6 @@ void process_input(GLFWwindow *window, Camera *camera, float3 *colors, int &cnt)
         clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
         cnt = 0;
     }
-    else if (glfwGetKey(window, GLFW_KEY_S))
-    {
-        camera_move<<<1, 1>>>(camera, BACKWARD);
-        clear_kernel<<<{(WIDTH + 7) / 8, (HEIGHT + 7) / 8}, {8, 8}>>>(colors);
-        cnt = 0;
-    }
     else if (glfwGetKey(window, GLFW_KEY_D))
     {
         camera_move<<<1, 1>>>(camera, RIGHT);
