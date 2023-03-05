@@ -1,6 +1,6 @@
 # Simple Ray Tracing
 ![](./img.png)
-# prerequest
+# prerequisites
 - visual studio
 - cuda
 - cmake
